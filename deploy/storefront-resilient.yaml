@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: storefront
+  namespace: shop
+spec:
+  replicas: 3
+  selector:
+    matchLabels: { app: storefront }
+  template:
+    metadata:
+      labels: { app: storefront, tier: shop }
+    spec:
+      nodeSelector: { role: app }
+      terminationGracePeriodSeconds: 20
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: { app: storefront }
+      containers:
+        - name: shop
+          image: shop:lab
+          imagePullPolicy: Never
+          env:
+            - { name: ROLE, value: "storefront" }
+            - { name: MAX_INFLIGHT, value: "6" }
+            - { name: PRICING_TIMEOUT, value: "500ms" }
+          ports:
+            - { name: http, containerPort: 8080 }
+          lifecycle:
+            preStop:
+              sleep: { seconds: 5 }
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 2
+          resources:
+            requests: { cpu: 50m, memory: 16Mi }
+            limits: { memory: 128Mi }
